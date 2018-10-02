@@ -1,14 +1,44 @@
-// +build amd64,!appengine,!gccgo
+#define storeBlock(a0,a1,a2,a3, r) \
+	MOVQ a0,  0+r \
+	MOVQ a1,  8+r \
+	MOVQ a2, 16+r \
+	MOVQ a3, 24+r
 
-#include "gfp.h"
-#include "mul.h"
-#include "mul_bmi2.h"
+#define loadBlock(r, a0,a1,a2,a3) \
+	MOVQ  0+r, a0 \
+	MOVQ  8+r, a1 \
+	MOVQ 16+r, a2 \
+	MOVQ 24+r, a3
 
-TEXT 路gfpNeg(SB),0,$0-16
-	MOVQ 路p2+0(SB), R8
-	MOVQ 路p2+8(SB), R9
-	MOVQ 路p2+16(SB), R10
-	MOVQ 路p2+24(SB), R11
+#define gfpCarry(a0,a1,a2,a3,a4, b0,b1,b2,b3,b4) \
+	\ // b = a-p
+	MOVQ a0, b0 \
+	MOVQ a1, b1 \
+	MOVQ a2, b2 \
+	MOVQ a3, b3 \
+	MOVQ a4, b4 \
+	\
+	SUBQ 穚2+0(SB), b0 \
+	SBBQ 穚2+8(SB), b1 \
+	SBBQ 穚2+16(SB), b2 \
+	SBBQ 穚2+24(SB), b3 \
+	SBBQ $0, b4 \
+	\
+	\ // if b is negative then return a
+	\ // else return b
+	CMOVQCC b0, a0 \
+	CMOVQCC b1, a1 \
+	CMOVQCC b2, a2 \
+	CMOVQCC b3, a3
+
+#include "mul_amd64.h"
+#include "mul_bmi2_amd64.h"
+
+TEXT 穏fpNeg(SB),0,$0-16
+	MOVQ 穚2+0(SB), R8
+	MOVQ 穚2+8(SB), R9
+	MOVQ 穚2+16(SB), R10
+	MOVQ 穚2+24(SB), R11
 
 	MOVQ a+8(FP), DI
 	SUBQ 0(DI), R8
@@ -23,7 +53,7 @@ TEXT 路gfpNeg(SB),0,$0-16
 	storeBlock(R8,R9,R10,R11, 0(DI))
 	RET
 
-TEXT 路gfpAdd(SB),0,$0-24
+TEXT 穏fpAdd(SB),0,$0-24
 	MOVQ a+8(FP), DI
 	MOVQ b+16(FP), SI
 
@@ -42,16 +72,16 @@ TEXT 路gfpAdd(SB),0,$0-24
 	storeBlock(R8,R9,R10,R11, 0(DI))
 	RET
 
-TEXT 路gfpSub(SB),0,$0-24
+TEXT 穏fpSub(SB),0,$0-24
 	MOVQ a+8(FP), DI
 	MOVQ b+16(FP), SI
 
 	loadBlock(0(DI), R8,R9,R10,R11)
 
-	MOVQ 路p2+0(SB), R12
-	MOVQ 路p2+8(SB), R13
-	MOVQ 路p2+16(SB), R14
-	MOVQ 路p2+24(SB), R15
+	MOVQ 穚2+0(SB), R12
+	MOVQ 穚2+8(SB), R13
+	MOVQ 穚2+16(SB), R14
+	MOVQ 穚2+24(SB), R15
 	MOVQ $0, AX
 
 	SUBQ  0(SI), R8
@@ -73,12 +103,12 @@ TEXT 路gfpSub(SB),0,$0-24
 	storeBlock(R8,R9,R10,R11, 0(DI))
 	RET
 
-TEXT 路gfpMul(SB),0,$160-24
+TEXT 穏fpMul(SB),0,$160-24
 	MOVQ a+8(FP), DI
 	MOVQ b+16(FP), SI
 
 	// Jump to a slightly different implementation if MULX isn't supported.
-	CMPB runtime路support_bmi2(SB), $0
+	CMPB 穐asBMI2(SB), $0
 	JE   nobmi2Mul
 
 	mulBMI2(0(DI),8(DI),16(DI),24(DI), 0(SI))
